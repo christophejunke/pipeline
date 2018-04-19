@@ -1,4 +1,12 @@
-(in-package :pipeline)
+(defpackage :pipeline.tests
+  (:use :cl :pipeline)
+  (:import-from #:sb-thread
+                #:make-thread
+                #:join-thread)
+  (:import-from #:sb-ext
+                #:run-program))
+
+(in-package :pipeline.tests)
 
 (defun reader (in out)
   (loop
@@ -24,10 +32,10 @@
     (let ((threads
            (list (make-thread #'writer :arguments (list out0))
                  (make-thread #'reader :arguments (list in1 *standard-output*)))))
-      (sb-ext:run-program "sed" '("s/5/<cinq>/g")
-                          :search t
-                          :input in0
-                          :output out1
-                          :wait nil
-                          :status-hook (on-death/close-streams in0 out1))
+      (run-program "sed" '("s/5/<cinq>/g")
+                   :search t
+                   :input in0
+                   :output out1
+                   :wait nil
+                   :status-hook (on-death/close-streams in0 out1))
       (mapc #'join-thread threads))))

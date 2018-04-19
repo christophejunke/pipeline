@@ -7,14 +7,15 @@
   (:import-from #:sb-unix
                 #:unix-pipe
                 #:unix-close)
-  (:import-from #:sb-thread
-                #:make-thread
-                #:join-thread)
   (:import-from #:sb-sys
                 #:make-fd-stream)
   (:import-from #:alexandria
                 #:with-gensyms
-                #:once-only))
+                #:once-only)
+  (:export #:on-death/close-streams
+           #:with-unix-pipe-streams
+           #:with-pipe-streams
+           #:with-unix-pipe))
 
 (in-package :pipeline)
 

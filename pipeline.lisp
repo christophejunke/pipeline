@@ -47,19 +47,6 @@
        (with-fd-stream% (,out ,wfd :output ,buffering)
          ,@body))))
 
-(defun reader (in out)
-  (loop
-     for line = (read-line in nil nil)
-     while line
-     do (format out "~&>>> ~a~%" line))
-  (close in)
-  (close out))
-
-(defun writer (out)
-  (dotimes (i 100)
-    (print i out))
-  (close out))
-
 (defmacro with-unix-pipe-streams ((in out) &body body)
   (with-gensyms (rfd wfd)
     `(with-unix-pipe (,rfd ,wfd)

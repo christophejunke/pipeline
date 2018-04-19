@@ -1,5 +1,18 @@
 (in-package :pipeline)
 
+(defun reader (in out)
+  (loop
+     for line = (read-line in nil nil)
+     while line
+     do (format out "~&>>> ~a~%" line))
+  (close in)
+  (close out))
+
+(defun writer (out)
+  (dotimes (i 100)
+    (print i out))
+  (close out))
+
 (with-unix-pipe (rfd wfd)
   (with-pipe-streams ((in rfd) (out wfd))
     (mapc #'join-thread

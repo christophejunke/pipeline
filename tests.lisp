@@ -39,3 +39,30 @@
                    :wait nil
                    :status-hook (on-death/close-streams in0 out1))
       (mapc #'join-thread threads))))
+
+(defun while-read-line0 (in callback)
+  (lambda ()
+    (loop
+       for line = (and (peek-char nil in nil nil)
+                       (with-output-to-string (out)
+                         (loop
+                            for char = (read-char in nil nil)
+                            while char
+                            until (char= char #\nul)
+                            do (write-char char out))))
+       while line
+       do (funcall callback line))
+    (close in)))
+
+;; (with-unix-pipe-streams (in0 out0)
+;;   (with-unix-pipe-streams (in1 out1)
+;;     (with-unix-pipe-streams (in2 out3)
+;;       (let ((threads
+;;              (list (make-thread (while-read-line0 in0 #'print)))))
+;;         (run-program "find" '("/tmp/" "-print0")
+;;                      :search t
+;;                      :input nil
+;;                      :output out0
+;;                      :wait nil
+;;                      :status-hook (on-death/close-streams out0))
+;;         (mapc #'join-thread threads)))))

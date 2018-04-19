@@ -6,12 +6,12 @@
                 #:process-alive-p)
   (:import-from #:sb-unix
                 #:unix-pipe
-                #:unix-close)  
+                #:unix-close)
   (:import-from #:sb-thread
                 #:make-thread
                 #:join-thread)
   (:import-from #:sb-sys
-                #:make-fd-stream)  
+                #:make-fd-stream)
   (:import-from #:alexandria
                 #:with-gensyms
                 #:once-only))
@@ -60,4 +60,3 @@
   (lambda (process)
     (unless (process-alive-p process)
       (map () #'close streams))))
-

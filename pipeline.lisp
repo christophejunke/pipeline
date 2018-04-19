@@ -4,9 +4,14 @@
   (:use :cl)
   (:import-from #:sb-ext
                 #:process-alive-p)
+  (:import-from #:sb-unix
+                #:unix-pipe
+                #:unix-close)  
   (:import-from #:sb-thread
                 #:make-thread
                 #:join-thread)
+  (:import-from #:sb-sys
+                #:make-fd-stream)  
   (:import-from #:alexandria
                 #:with-gensyms
                 #:once-only))
@@ -15,7 +20,7 @@
 
 (defmacro with-unix-pipe ((read-fd write-fd) &body body)
   (with-gensyms (first second error)
-    `(multiple-value-bind (,first ,second) (sb-unix:unix-pipe)
+    `(multiple-value-bind (,first ,second) (unix-pipe)
        (if ,first
            (unwind-protect
                 (multiple-value-bind (,read-fd ,write-fd)
@@ -23,17 +28,15 @@
                   ,@body)
              (handler-bind ((error (lambda (,error)
                                      (warn "Unix close error: ~s" ,error))))
-               (sb-unix:unix-close ,first)
-               (sb-unix:unix-close ,second)))
+               (unix-close ,first)
+               (unix-close ,second)))
            (error "Unix pipe error: ~s" ,second)))))
 
 (defmacro with-fd-stream% ((var fd direction buffering) &body body)
   (check-type direction (member :output :input))
   (check-type buffering symbol)
   (with-gensyms (in%)
-    `(let ((,in% (sb-sys:make-fd-stream ,fd
-                                        :buffering ,buffering
-                                        ,direction t)))
+    `(let ((,in% (make-fd-stream ,fd :buffering ,buffering ,direction t)))
        (declare (dynamic-extent ,in%))
        (unwind-protect (let ((,var ,in%))
                          (declare (dynamic-extent ,var))

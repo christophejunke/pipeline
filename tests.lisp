@@ -29,5 +29,5 @@
                           :input in0
                           :output out1
                           :wait nil
-                          :status-hook (closer in0 out1))
+                          :status-hook (on-death/close-streams in0 out1))
       (mapc #'join-thread threads))))

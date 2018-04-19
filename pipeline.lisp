@@ -53,7 +53,7 @@
        (with-pipe-streams ((,in ,rfd) (,out ,wfd))
          ,@body))))
 
-(defun closer (&rest streams)
+(defun on-death/close-streams (&rest streams)
   (lambda (process)
     (unless (process-alive-p process)
       (map () #'close streams))))

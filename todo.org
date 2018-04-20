@@ -1,0 +1,3 @@
+* TODO Split in different subsystems
+* TODO Use portability layers (bordeaux-threads, osicat, etc.)
+

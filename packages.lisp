@@ -1,4 +1,5 @@
 (defpackage :pipeline.unix-pipes
+  (:documentation "")
   (:use :cl)
   (:import-from #:sb-unix
                 #:unix-pipe
@@ -9,10 +10,10 @@
                 #:with-gensyms)
 
   (:export #:with-fd-streams
-           #:with-unix-pipe
-           ))
+           #:with-unix-pipe))
 
 (defpackage :pipeline.pipes
+  (:documentation "")
   (:use :cl)
   (:import-from #:sb-unix
                 #:unix-pipe
@@ -34,6 +35,7 @@
            #:ensure-stream-closed/no-error))
 
 (defpackage :pipeline.filters
+  (:documentation "")
   (:use :cl)
   (:import-from #:pipeline.pipes
                 #:ensure-stream-closed/no-error)
@@ -53,6 +55,7 @@
            #:program))
 
 (defpackage :pipeline
+  (:documentation "")
   (:use :cl :pipeline.pipes :pipeline.filters)
   (:import-from #:alexandria
                 #:with-gensyms
@@ -61,6 +64,7 @@
            #:program))
 
 (defpackage pipeline.builtins
+  (:documentation "")
   (:use :cl :pipeline.filters)
   (:export #:tee
            #:tee/error))

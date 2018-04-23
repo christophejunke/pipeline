@@ -3,21 +3,19 @@
 (defun unix-close/warn-on-error (file-descriptor)
   (multiple-value-bind (status error) (unix-close file-descriptor)
     (prog1 status
-      (when error
+      (unless (eql error 0)
         (warn "Unix close error: ~S" error)))))
 
 (defmacro with-unix-pipe ((read-fd write-fd) &body body)
-  (with-gensyms (first second error)
+  (with-gensyms (first second)
     `(multiple-value-bind (,first ,second) (unix-pipe)
        (if ,first
            (unwind-protect
                 (multiple-value-bind (,read-fd ,write-fd)
                     (values ,first ,second)
                   ,@body)
-             (handler-bind ((error (lambda (,error)
-                                     (warn "Unix close error: ~s" ,error))))
-               (unix-close/warn-on-error ,first)
-               (unix-close/warn-on-error ,second)))
+             (unix-close/warn-on-error ,first)
+             (unix-close/warn-on-error ,second))
            (error "Unix pipe error: ~s" ,second)))))
 
 (defmacro with-fd-stream% ((var fd direction &rest fd-args) &body body)

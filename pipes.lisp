@@ -1,12 +1,30 @@
 (in-package :pipeline.pipes)
 
-(defun ensure-stream-closed/no-error (stream)
-  (cond
-    ((null stream))
-    ((not (typep stream 'stream))
-     (warn "Not a stream: ~a" stream))
-    ((open-stream-p stream)
-     (close stream))))
+;; portably traceable
+(defun ensure-stream-closed (stream)
+  (close stream))
+
+(defvar *auto-close* nil)
+
+(defgeneric ensure-stream-closed/no-error (stream)
+  (:method (_))
+  (:method ((stream stream) &aux *auto-close*)
+    (when (open-stream-p stream)
+      (unless (member stream *auto-close*)
+        (handler-case (close stream)
+          (error (e) (warn "close error: ~a" e)))))))
+
+(defmacro with-auto-closing-streams ((&rest streams) &body body)
+  "Streams that are not already open on entry are closed on exit"
+  `(let ((*auto-close*
+           (set-difference
+            ;; all non-open streams
+            (delete-duplicates (remove-if #'open-stream-p
+                                          (remove nil (list ,@streams))))
+            ;; except those already schedule for auto-close
+            *auto-close*)))
+     (unwind-protect (progn ,@body)
+       (map () #'ensure-stream-closed *auto-close*))))
 
 (defstruct (pipe (:constructor make-pipe% (in out)))
   (in  nil :read-only t)
@@ -23,12 +41,10 @@
 (defun make-pipe ()
   (multiple-value-bind (read-fd write-fd) (unix-pipe)
     (if read-fd
-        (let (in-stream
-              out-stream)
-          (handler-case
-              (make-pipe%
-               (setf in-stream (make-fd-stream read-fd :input t))
-               (setf out-stream (make-fd-stream write-fd :output t)))
+        (let (in-stream out-stream)
+          (handler-case (make-pipe%
+                         (setf in-stream (make-fd-stream read-fd :input t))
+                         (setf out-stream (make-fd-stream write-fd :output t)))
             (error (e)
               (ensure-stream-closed/no-error in-stream)
               (ensure-stream-closed/no-error out-stream)

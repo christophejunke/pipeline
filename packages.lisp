@@ -32,13 +32,15 @@
            #:with-pipes
            #:pipe-in
            #:pipe-out
-           #:ensure-stream-closed/no-error))
+           #:ensure-stream-closed/no-error
+           #:with-auto-closing-streams))
 
 (defpackage :pipeline.filters
   (:documentation "")
   (:use :cl)
   (:import-from #:pipeline.pipes
-                #:ensure-stream-closed/no-error)
+                #:ensure-stream-closed/no-error
+                #:with-auto-closing-streams)
   (:import-from #:sb-thread
                 #:make-thread
                 #:join-thread)

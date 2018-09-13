@@ -48,7 +48,7 @@ finish."))
         :wait wait
         :input input
         :output output
-        :error (make-broadcast-stream error)
+        :error error
         :status-hook (make-hook/on-death-close-streams input output error )))))
 
 (defmethod clean/tag ((tag (eql :process)) process)
@@ -56,13 +56,11 @@ finish."))
 
 (defmethod spawn ((function function) &key input output error wait)
   (flet ((wrapped ()
-           (let ((*standard-input* input)
-                 (*standard-output* output)
-                 (*error-output* (make-broadcast-stream error)))
-             (unwind-protect (funcall function)
-               (pipeline.pipes:ensure-stream-closed/no-error input)
-               (pipeline.pipes:ensure-stream-closed/no-error output)
-               (pipeline.pipes:ensure-stream-closed/no-error error)))))
+           (with-auto-closing-streams (input output error)
+             (let ((*standard-input* input)
+                   (*standard-output* output)
+                   (*error-output* error))
+               (funcall function)))))
     (if wait
         `(:funcall ,(wrapped))
         `(:thread ,(make-thread #'wrapped)))))

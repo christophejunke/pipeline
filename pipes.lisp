@@ -49,15 +49,16 @@
         (setf (fill-pointer pipes) 0)))
     (coerce pipes `(simple-vector ,count))))
 
+(defmacro with-pipes% ((pipes count) &body body)
+  `(let ((,pipes (make-pipes ,count)))
+     (declare (type (simple-vector ,count) ,pipes))
+     (unwind-protect (progn ,@body)
+       (clean-pipes ,pipes))))
+
 (defmacro with-pipes ((pipes count) &body body)
   (with-gensyms (internal)
-    `(let ((,internal (make-pipes ,count)))
-       (declare (type (simple-vector ,count) ,internal)
-                (dynamic-extent ,internal))
-       (unwind-protect
-            (let ((,pipes (copy-seq ,internal)))
-              (declare (type (simple-vector ,count) ,pipes)
-                       (dynamic-extent ,pipes))
-              ,@body)
-         (clean-pipes ,internal)))))
+    `(with-pipes% (internal ,count)
+       (let ((,pipes (copy-seq ,internal)))
+         (declare (type (simple-vector ,count) ,pipes))
+         ,@body))))
 

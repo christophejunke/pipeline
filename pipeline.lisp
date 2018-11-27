@@ -21,36 +21,44 @@
                    :wait ,wait)))
     (let ((size (length processors)))
       (with-gensyms (input% output% error%)
-        `(let* ((,input%  (ensure-stream ,input  :input  nil))
-                (,output% (ensure-stream ,output :output nil))
-                (,error%  (ensure-stream ,error  :error  ,output%)))
-           ,(case size
-              (0 nil)
-              (1 (make-spawn (first processors) input% output% error% t))
-              (t (with-gensyms (pipes)
-                   (let ((bindings (loop
-                                     for p in processors
-                                     collect (list (gensym) p))))
-                     `(let ,bindings
-                        (pipeline.pipes:with-pipes (,pipes ,(1- size))
-                          (alexandria:lastcar
-                           (mapcar
-                            #'clean
-                            (list
-                             ,@(loop
-                                 for p-in = input% then `(pipe-in
-                                                          (svref ,pipes
-                                                                 ,index))
-                                 for index from 0
-                                 for (var . rest) on (mapcar #'first bindings)
-                                 for lastp = (not rest)
-                                 for p-out = (if lastp output%
-                                                 `(pipe-out
-                                                   (svref ,pipes
-                                                          ,index)))
-                                 collect (make-spawn var
-                                                     p-in
-                                                     p-out
-                                                     error%
-                                                     lastp))))))))))))))))
+        `(catch :pipeline
+           (block nil
+             (let* ((,input%  (ensure-stream ,input  :input  nil))
+                    (,output% (ensure-stream ,output :output nil))
+                    (,error%  (ensure-stream ,error  :error  ,output%)))
+               ,(case size
+                  (0 nil)
+                  (1 (make-spawn (first processors) input% output% error% t))
+                  (t
+                   (with-gensyms (pipes)
+                     (let ((bindings (loop
+                                       for p in processors
+                                       collect (list (gensym) p))))
+                       `(let ,bindings
+                          (with-pipes% (,pipes ,(1- size))
+                            (alexandria:lastcar
+                             (mapcar
+                              #'clean
+                              (list
+                               ,@(loop
+                                   for p-in = input% then `(pipe-in
+                                                            (svref ,pipes
+                                                                   ,index))
+                                   for index from 0
+                                   for (var . rest) on (mapcar #'first bindings)
+                                   for lastp = (not rest)
+                                   for p-out = (if lastp output%
+                                                   `(pipe-out
+                                                     (svref ,pipes
+                                                            ,index)))
+                                   collect (make-spawn var
+                                                       p-in
+                                                       p-out
+                                                       error%
+                                                       lastp))))))))))))))))))
 
+(defun execute (&rest args)
+  (destructuring-bind (keyword process) (with-pipeline ()
+                                          (apply #'program args))
+    (assert (eq :process keyword))
+    (zerop (sb-ext:process-exit-code process))))

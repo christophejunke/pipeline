@@ -7,10 +7,10 @@
   (sb-posix:getenv "HOME"))
 
 (with-pipeline (:error nil)
-  (program "ls" #?"${(home)}/bin/")
+  (program "ls" (namestring (merge-pathnames "bin/" (user-homedir-pathname))))
   (program "sed" "s/a/aaaa/")
   (tee/error)
-  (program "wc" "-l")
+  (program "wc" "-c")
   #'read)
 
 #+cl-ppcre

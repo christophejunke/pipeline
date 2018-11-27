@@ -22,7 +22,6 @@
   (check-type direction (member :output :input))
   (with-gensyms (in%)
     `(let ((,in% (make-fd-stream ,fd ,direction t ,@fd-args)))
-       (declare (dynamic-extent ,in%))
        (unwind-protect (let ((,var ,in%))
                          (declare (dynamic-extent ,var))
                          ,@body)

@@ -29,6 +29,7 @@
            #:make-pipes
            #:clean-pipe
            #:clean-pipes
+           #:with-pipes%
            #:with-pipes
            #:pipe-in
            #:pipe-out
@@ -61,13 +62,21 @@
                 #:with-gensyms
                 #:once-only)
   (:export #:with-pipeline
+           #:execute
            #:program))
 
 (defpackage pipeline.builtins
   (:documentation "")
   (:use :cl :pipeline.filters)
   (:export #:tee
-           #:tee/error))
+           #:map-lines
+           #:each-line
+           #:lambda-line
+           #:each-form
+           #:lambda-form
+           #:tee/error
+           #:read-form
+           #:feed))
 
 (defpackage :pipeline.tests
   (:use :cl :pipeline :pipeline.builtins)

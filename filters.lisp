@@ -23,7 +23,8 @@ finish."))
 (defclass program ()
   ((name :initarg :name)
    (arguments :initarg :arguments)
-   (search :initarg :search :initform t)))
+   (search :initarg :search :initform t)
+   (error :initarg :error :initform :output)))
 
 (defun program (name &rest args)
   (make-instance 'program :name name :arguments args))
@@ -39,7 +40,7 @@ finish."))
       (ensure-stream-closed/no-error err))))
 
 (defmethod spawn ((program program) &key input output error wait)
-  (with-slots (name arguments search) program
+  (with-slots (name arguments search (program-error error)) program
     `(:process
       ,(run-program
         name
@@ -48,7 +49,8 @@ finish."))
         :wait wait
         :input input
         :output output
-        :error (make-broadcast-stream error)
+        :directory *default-pathname-defaults*
+        :error (or program-error (make-broadcast-stream error))
         :status-hook (make-hook/on-death-close-streams input output error )))))
 
 (defmethod clean/tag ((tag (eql :process)) process)
@@ -58,11 +60,11 @@ finish."))
   (flet ((wrapped ()
            (let ((*standard-input* input)
                  (*standard-output* output)
-                 (*error-output* (make-broadcast-stream error)))
+                 (*error-output* error))
              (unwind-protect (funcall function)
-               (pipeline.pipes:ensure-stream-closed/no-error input)
-               (pipeline.pipes:ensure-stream-closed/no-error output)
-               (pipeline.pipes:ensure-stream-closed/no-error error)))))
+               (ensure-stream-closed/no-error input)
+               (ensure-stream-closed/no-error output)
+               (ensure-stream-closed/no-error error)))))
     (if wait
         `(:funcall ,(wrapped))
         `(:thread ,(make-thread #'wrapped)))))

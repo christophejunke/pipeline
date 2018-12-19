@@ -1,5 +1,6 @@
 (defpackage #:pipeline.nmcli
-  (:use #:cl #:alexandria #:cl-ppcre #:pipeline))
+  (:use #:cl #:alexandria #:cl-ppcre #:pipeline)
+  (:export #:connections))
 
 (in-package #:pipeline.nmcli)
 
@@ -22,12 +23,12 @@
                     :device-type (let ((tt (unspace (subseq line end))))
                                    (gethash tt *device-types* tt)))))))
 
-(defun nmcli (&aux connections)
-  (let ((*unix-environment* '("LANG_ALL=C")))
+(defun connections ()
+  (let ((connections) (*unix-environment* '("LANG_ALL=C")))
     (with-pipeline ()
       (program "nmcli" "--fields" "name,uuid,type" "connection")
       (lambda-line (line)
         (prog1 nil
           (when-let (connection (parse-nmcli-triplet line))
             (push connection connections)))))
-    (nreverse connections)))
+    (coerce (nreverse connections) 'simple-vector)))

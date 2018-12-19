@@ -39,12 +39,15 @@ finish."))
       (ensure-stream-closed/no-error out)
       (ensure-stream-closed/no-error err))))
 
+(defvar *unix-environment* '("LANG_ALL=C"))
+
 (defmethod spawn ((program program) &key input output error wait)
   (with-slots (name arguments search (program-error error)) program
     `(:process
       ,(run-program
         name
         arguments
+        :environment *unix-environment*
         :search search
         :wait wait
         :input input

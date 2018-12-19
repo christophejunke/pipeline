@@ -53,22 +53,24 @@
   (:export #:spawn
            #:clean
            #:clean/tag
-           #:program))
+           #:program
+           #:*unix-environment*))
 
 (defpackage :pipeline
   (:documentation "")
-  (:use :cl :pipeline.pipes :pipeline.filters)
+  (:use #:cl
+        #:pipeline.pipes
+        #:pipeline.filters
+        #:pipeline.builtins)
   (:import-from #:alexandria
                 #:with-gensyms
                 #:once-only)
-  (:export #:with-pipeline
+  (:export #:program
+           #:*unix-environment*
+           #:with-pipeline
            #:execute
-           #:program))
-
-(defpackage pipeline.builtins
-  (:documentation "")
-  (:use :cl :pipeline.filters)
-  (:export #:tee
+           #:program
+           #:tee
            #:map-lines
            #:each-line
            #:lambda-line
@@ -77,6 +79,7 @@
            #:tee/error
            #:read-form
            #:feed))
+
 
 (defpackage :pipeline.tests
   (:use :cl :pipeline :pipeline.builtins)

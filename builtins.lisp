@@ -1,4 +1,4 @@
-(in-package :pipeline.builtins)
+(in-package :pipeline)
 
 (defun tee (&rest streams)
   (lambda ()

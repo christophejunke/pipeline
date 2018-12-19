@@ -5,6 +5,7 @@
                (:file "pipes")
                (:file "pipeline")
                (:file "filters")
-               (:file "builtins")))
+               (:file "builtins")
+               (:file "nmcli")))
 
 

@@ -29,11 +29,9 @@
        do (progn ,@body))))
 
 (defmacro lambda-line ((line) &body body)
-  `(compile
-    nil
-    (lambda ()
-      (with-read-loop (,line read-line)
-        (locally ,@body)))))
+  `(lambda ()
+     (with-read-loop (,line read-line)
+       (locally ,@body))))
 
 (defmacro lambda-line-print ((line) &body body)
   (alexandria:with-gensyms (transform)

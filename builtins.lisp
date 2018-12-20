@@ -49,6 +49,12 @@
 
 (export
  (defmacro lambda-form ((form) &body body)
+   `(lambda ()
+      (with-read-loop (,form read)
+        (locally ,@body)))))
+
+(export
+ (defmacro lambda-form-print ((form) &body body)
    (alexandria:with-gensyms (value)
      `(lambda ()
         (with-read-loop (,form read)

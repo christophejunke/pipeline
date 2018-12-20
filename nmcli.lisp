@@ -18,6 +18,7 @@
   (plist-hash-table
    '("802-11-wireless" :wifi
      "wifi"            :wifi
+     "bridge"          :bridge
      "802-3-ethernet"  :ethernet
      "ethernet"        :ethernet)
    :test #'equal))

@@ -10,50 +10,60 @@
 
 (defstruct
     (connection
-      (:constructor connection (&key ((:type device-type)) name uuid))
-      (:conc-name))
-  name uuid device-type)
+     (:constructor connection (&key ((:type device-type)) name uuid))
+     (:conc-name))
+  name
+  uuid
+  device-type)
 
-(defvar *device-types*
-  (plist-hash-table
-   '("802-11-wireless" :wifi
-     "wifi"            :wifi
-     "bridge"          :bridge
-     "802-3-ethernet"  :ethernet
-     "ethernet"        :ethernet)
-   :test #'equal))
+(defun slice (string start end)
+  (make-array (- (or end (length string)) start)
+              :element-type (array-element-type string)
+              :displaced-to string
+              :displaced-index-offset start))
 
-(declaim (inline unspaced-slice))
-
-(defun unspaced-slice (string start end)
+(defun trim-bounds (bucket side string start end)
   (setf end (or end (length string)))
-  (flet ((non-space-position (from-end)
-           (position #\space string
-                     :from-end from-end
-                     :test-not #'char=
-                     :start start
-                     :end end)))
-    (let* ((start (non-space-position nil))
-           (end (and start (non-space-position t))))
-      (if end (make-array (- (1+ end) start)
-                          :element-type
-                          (array-element-type string)
-                          :displaced-to string
-                          :displaced-index-offset start)
-          ""))))
+  (check-type side (member :both :right :left))
+  (let ((bucketp (etypecase bucket
+                   (null (return-from trim-bounds (values start end)))
+                   (string (lambda (c) (find c bucket)))
+                   (character (lambda (c) (char= c bucket)))
+                   (cons (lambda (c) (member c bucket :test #'char=))))))
+    (labels ((non-bucket-pos (from-end)
+               (position-if-not bucketp
+                                string
+                                :from-end from-end
+                                :start start
+                                :end end)))
+      (when (member side '(:both :left))
+        (setf start (non-bucket-pos nil)))
+      (if start
+          (values start
+                  (if (member side '(:both :right))
+                      (1+ (non-bucket-pos t))
+                      end))
+          (values 0 0)))))
 
-(defun connections (&aux (result (make-array 64 :fill-pointer 0 :adjustable t)))
-  (prog1 result
-    (let ((*unix-environment* '("LANG_ALL=C")))
-      (with-pipeline ()
-        (program "nmcli" "--fields" "name,uuid,type" "connection")
-        (lambda-line (line)
-          (multiple-value-bind (uuid-beg uuid-end) (scan "[0-9a-f-]{36}" line)
-            (when uuid-beg
-              (vector-push-extend
-               (connection :name (unspaced-slice line 0 uuid-beg)
-                           :uuid (unspaced-slice line uuid-beg uuid-end)
-                           :type (let ((dt (unspaced-slice line uuid-end nil)))
-                                   (gethash dt *device-types* dt)))
-               result
-               (array-total-size result)))))))))
+(defun trim (bucket string &optional (start 0) end (side :both))
+  (multiple-value-bind (s e) (trim-bounds bucket side string start end)
+    (slice string s e )))
+
+(defun connections ()
+  (let ((*unix-environment* '("LANG_ALL=C")))
+    (with-pipeline () 
+      (program "nmcli" "--fields" "name,uuid,type" "connection")
+      (lambda ()
+        (let ((connections (make-array 64 :fill-pointer 0 :adjustable t)))
+          (with-read-loop (line read-line)
+            (flet ((trim (s &optional e) (trim #\space line s e)))
+              (declare (inline trim))
+              (multiple-value-bind (start end) (scan "[0-9a-f-]{36}" line)
+                (when start
+                  (vector-push-extend (connection :name (trim 0 start)
+                                                  :uuid (trim start end)
+                                                  :type (trim end))
+                                      connections
+                                      (array-total-size connections))))))
+          (return connections))))))
+

@@ -71,6 +71,7 @@
            #:execute
            #:program
            #:tee
+           #:with-read-loop
            #:map-lines
            #:each-line
            #:lambda-line

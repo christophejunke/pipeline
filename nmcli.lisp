@@ -55,4 +55,4 @@
                            :type (let ((dt (unspaced-slice line uuid-end nil)))
                                    (gethash dt *device-types* dt)))
                result
-               (array-total-size result))))))))))
+               (array-total-size result)))))))))

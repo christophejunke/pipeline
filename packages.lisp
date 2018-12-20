@@ -61,8 +61,7 @@
   (:documentation "")
   (:use #:cl
         #:pipeline.pipes
-        #:pipeline.filters
-        #:pipeline.builtins)
+        #:pipeline.filters)
   (:import-from #:alexandria
                 #:with-gensyms
                 #:once-only)
@@ -87,7 +86,7 @@
 
 
 (defpackage :pipeline.tests
-  (:use :cl :pipeline :pipeline.builtins)
+  (:use :cl :pipeline)
   (:import-from #:sb-thread
                 #:make-thread
                 #:join-thread)

@@ -29,10 +29,17 @@
        do (progn ,@body))))
 
 (defmacro lambda-line ((line) &body body)
+  `(compile
+    nil
+    (lambda ()
+      (with-read-loop (,line read-line)
+        (locally ,@body)))))
+
+(defmacro lambda-line-print ((line) &body body)
   (alexandria:with-gensyms (transform)
     `(lambda ()
        (with-read-loop (,line read-line)
-         (let ((,transform (progn ,@body)))
+         (let ((,transform (locally ,@body)))
            (when ,transform
              (princ ,transform)
              (terpri)))))))
@@ -68,3 +75,32 @@
 (export
  (defun read-form ()
    (lambda-form (form) (throw :pipeline form))))
+
+(export
+ (defun from-file (file)
+   (lambda ()
+     (with-open-file (*standard-input* file)
+       (with-read-loop (line read-line)
+         (write-sequence line *standard-output*)
+         (terpri))))))
+
+(export
+ (defun to-file (file)
+   (lambda ()
+     (with-open-file (*standard-output*
+                      file
+                      :direction :output
+                      :if-exists :supersede)
+       (with-read-loop (line read-line)
+         (write-sequence line *standard-output*)
+         (terpri))
+       (pathname *standard-output*)))))
+
+(export
+ (defun line-collector (&optional (type 'simple-vector))
+   (lambda ()
+     (let ((vector (make-array 256 :fill-pointer 0 :adjustable t)))
+       (with-read-loop (line read-line)
+         (vector-push-extend line vector (array-total-size vector)))
+       (coerce vector type)))))
+

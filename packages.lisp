@@ -25,7 +25,7 @@
   (:import-from #:alexandria
                 #:with-gensyms)
 
-  (:export #:make-pipe 
+  (:export #:make-pipe
            #:make-pipes
            #:clean-pipe
            #:clean-pipes
@@ -54,6 +54,7 @@
            #:clean
            #:clean/tag
            #:program
+           #:error-to-output
            #:*unix-environment*))
 
 (defpackage :pipeline
@@ -74,11 +75,15 @@
            #:map-lines
            #:each-line
            #:lambda-line
+           #:lambda-line-print
            #:each-form
            #:lambda-form
            #:tee/error
            #:read-form
-           #:feed))
+           #:feed
+           #:from-file
+           #:to-file
+           #:line-collector))
 
 
 (defpackage :pipeline.tests
@@ -88,4 +93,3 @@
                 #:join-thread)
   (:import-from #:sb-ext
                 #:run-program))
-

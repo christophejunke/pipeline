@@ -58,7 +58,8 @@
                                                        lastp))))))))))))))))))
 
 (defun execute (&rest args)
-  (destructuring-bind (keyword process) (with-pipeline ()
-                                          (apply #'program args))
+  (destructuring-bind (keyword process)
+      (with-pipeline (:error *error-output*)
+        (apply #'program args))
     (assert (eq :process keyword))
     (zerop (sb-ext:process-exit-code process))))

@@ -24,10 +24,14 @@ finish."))
   ((name :initarg :name)
    (arguments :initarg :arguments)
    (search :initarg :search :initform t)
-   (error :initarg :error :initform :output)))
+   (error :initarg :error :initform nil :accessor error-of)))
 
 (defun program (name &rest args)
   (make-instance 'program :name name :arguments args))
+
+(defun error-to-output (program)
+  (prog1 program
+    (setf (error-of program) :output)))
 
 (defun make-hook/on-death-close-streams (in out err)
   (lambda (process)

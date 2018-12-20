@@ -1,34 +1,58 @@
 (defpackage #:pipeline.nmcli
   (:use #:cl #:alexandria #:cl-ppcre #:pipeline)
-  (:export #:connections))
+  (:nicknames :nmcli)
+  (:export #:connections
+           #:device-type
+           #:uuid
+           #:name))
 
 (in-package #:pipeline.nmcli)
 
-(defstruct (connection (:constructor connection)
-                       (:conc-name))
+(defstruct
+    (connection
+      (:constructor connection (&key ((:type device-type)) name uuid))
+      (:conc-name))
   name uuid device-type)
 
 (defvar *device-types*
   (plist-hash-table
    '("802-11-wireless" :wifi
-     "802-3-ethernet" :ethernet)
+     "wifi"            :wifi
+     "802-3-ethernet"  :ethernet
+     "ethernet"        :ethernet)
    :test #'equal))
 
-(defun parse-nmcli-triplet (line)
-  (flet ((unspace (s) (string-trim " " s)))
-    (multiple-value-bind (start end) (scan "[0-9a-f-]{36}" line)
-      (when start
-        (connection :name (unspace (subseq line 0 start))
-                    :uuid (subseq line start end)
-                    :device-type (let ((tt (unspace (subseq line end))))
-                                   (gethash tt *device-types* tt)))))))
+(declaim (inline unspaced-slice))
 
-(defun connections ()
-  (let ((connections) (*unix-environment* '("LANG_ALL=C")))
-    (with-pipeline ()
-      (program "nmcli" "--fields" "name,uuid,type" "connection")
-      (lambda-line (line)
-        (prog1 nil
-          (when-let (connection (parse-nmcli-triplet line))
-            (push connection connections)))))
-    (coerce (nreverse connections) 'simple-vector)))
+(defun unspaced-slice (string start end)
+  (setf end (or end (length string)))
+  (flet ((non-space-position (from-end)
+           (position #\space string
+                     :from-end from-end
+                     :test-not #'char=
+                     :start start
+                     :end end)))
+    (let* ((start (non-space-position nil))
+           (end (and start (non-space-position t))))
+      (if end (make-array (- (1+ end) start)
+                          :element-type
+                          (array-element-type string)
+                          :displaced-to string
+                          :displaced-index-offset start)
+          ""))))
+
+(defun connections (&aux (result (make-array 64 :fill-pointer 0 :adjustable t)))
+  (prog1 result
+    (let ((*unix-environment* '("LANG_ALL=C")))
+      (with-pipeline ()
+        (program "nmcli" "--fields" "name,uuid,type" "connection")
+        (lambda-line (line)
+          (multiple-value-bind (uuid-beg uuid-end) (scan "[0-9a-f-]{36}" line)
+            (when uuid-beg
+              (vector-push-extend
+               (connection :name (unspaced-slice line 0 uuid-beg)
+                           :uuid (unspaced-slice line uuid-beg uuid-end)
+                           :type (let ((dt (unspaced-slice line uuid-end nil)))
+                                   (gethash dt *device-types* dt)))
+               result
+               (array-total-size result))))))))))

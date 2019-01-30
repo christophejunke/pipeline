@@ -54,6 +54,7 @@
            #:clean
            #:clean/tag
            #:program
+           #:program*
            #:error-to-output
            #:*unix-environment*))
 
@@ -66,6 +67,7 @@
                 #:with-gensyms
                 #:once-only)
   (:export #:program
+           #:program*
            #:*unix-environment*
            #:with-pipeline
            #:execute

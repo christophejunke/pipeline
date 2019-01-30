@@ -26,8 +26,11 @@ finish."))
    (search :initarg :search :initform t)
    (error :initarg :error :initform nil :accessor error-of)))
 
-(defun program (name &rest args)
+(defun program* (name args)
   (make-instance 'program :name name :arguments args))
+
+(defun program (name &rest args)
+  (program* name args))
 
 (defun error-to-output (program)
   (prog1 program

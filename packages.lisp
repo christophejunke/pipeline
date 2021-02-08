@@ -70,8 +70,8 @@
            #:*in*
            #:*out*
            #:%
+           #:*env*
            #:program*
-           #:*unix-environment*
            #:with-pipeline
            #:execute
            #:program

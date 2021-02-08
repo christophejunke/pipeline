@@ -51,7 +51,8 @@ finish."))
 (defmethod spawn ((program program) &key input output error wait)
   (with-slots (name arguments search (program-error error)) program
     `(:process
-      ,(run-program
+      ,(apply #'
+        run-program
         name
         arguments
         :search search
@@ -60,7 +61,8 @@ finish."))
         :output output
         :directory *default-pathname-defaults*
         :error (or program-error (make-broadcast-stream error))
-        :status-hook (make-hook/on-death-close-streams input output error )))))
+        :status-hook (make-hook/on-death-close-streams input output error )
+        (when *env* (list :environment *env*))))))
 
 (defmethod clean/tag ((tag (eql :process)) process)
   (process-wait process))

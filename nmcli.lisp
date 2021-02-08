@@ -50,7 +50,7 @@
     (slice string s e )))
 
 (defun connections ()
-  (let ((*unix-environment* '("LANG_ALL=C")))
+  (let ((*env* '("LANG_ALL=C")))
     (with-pipeline () 
       (program "nmcli" "--fields" "name,uuid,type" "connection")
       (lambda ()

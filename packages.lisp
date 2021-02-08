@@ -56,7 +56,7 @@
            #:program
            #:program*
            #:error-to-output
-           #:*unix-environment*))
+           #:*env*))
 
 (defpackage :pipeline
   (:documentation "")
@@ -67,6 +67,9 @@
                 #:with-gensyms
                 #:once-only)
   (:export #:program
+           #:*in*
+           #:*out*
+           #:%
            #:program*
            #:*unix-environment*
            #:with-pipeline
@@ -78,6 +81,7 @@
            #:each-line
            #:lambda-line
            #:lambda-line-print
+           #:lambda-form-print
            #:each-form
            #:lambda-form
            #:tee/error

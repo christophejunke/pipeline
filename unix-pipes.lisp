@@ -39,6 +39,6 @@
                                   &body body)
   (with-gensyms (rfd wfd)
     `(with-unix-pipe (,rfd ,wfd)
-       (with-pipe-streams ((,in ,rfd ,@read-args)
-                           (,out ,wfd ,@write-args))
+       (with-fd-streams ((,in ,rfd ,@read-args)
+                         (,out ,wfd ,@write-args))
          ,@body))))

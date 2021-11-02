@@ -42,6 +42,10 @@
              (princ ,transform)
              (terpri)))))))
 
+(defmacro do-lines ((line) &body body)
+  `(with-read-loop (,line read-line)
+     (locally ,@body)))
+
 (export
  (defun each-line (function)
    (lambda-line (line)

@@ -31,6 +31,7 @@
            #:clean-pipes
            #:with-pipes%
            #:with-pipes
+           #:pipe
            #:pipe-in
            #:pipe-out
            #:ensure-stream-closed/no-error))
@@ -73,12 +74,12 @@
            #:*env*
            #:program*
            #:with-pipeline
-           #:execute
            #:program
            #:tee
            #:with-read-loop
            #:map-lines
            #:each-line
+           #:do-lines
            #:lambda-line
            #:lambda-line-print
            #:lambda-form-print

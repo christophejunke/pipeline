@@ -1,7 +1,8 @@
 (in-package :pipeline.filters)
 
-(defgeneric spawn (command &key input output error wait)
-  (:documentation "Create the program or thread that executes the given COMMAND.
+(defgeneric spawn (command &key input output error wait first last)
+  (:documentation
+   "Create the program or thread that executes the given COMMAND.
 
 INPUT, OUTPUT and ERROR are streams that are given to the COMMAND and
 should be closed once the task terminates.
@@ -36,9 +37,16 @@ finish."))
   (prog1 program
     (setf (error-of program) :output)))
 
+(defmacro warn-on-errors ((&key (type 'error)) &body body)
+  `(handler-case (progn ,@body)
+     (,type (e) (warn "caught error ~s" e))))
+
 (defun make-hook/on-death-close-streams (in out err)
   (lambda (process)
     (unless (process-alive-p process)
+      (warn-on-errors (:type error) (clear-input in))
+      (warn-on-errors (:type error) (finish-output out))
+      (warn-on-errors (:type error) (finish-output err))
       (ensure-stream-closed/no-error (process-input process))
       (ensure-stream-closed/no-error (process-output process))
       (ensure-stream-closed/no-error (process-error process))
@@ -48,37 +56,45 @@ finish."))
 
 (defvar *env* '("LANG_ALL=C"))
 
-(defmethod spawn ((program program) &key input output error wait)
+(defmethod spawn ((program program) &key input output error wait first last)
   (with-slots (name arguments search (program-error error)) program
-    `(:process
-      ,(apply #'
-        run-program
-        name
-        arguments
-        :search search
-        :wait wait
-        :input input
-        :output output
-        :directory *default-pathname-defaults*
-        :error (or program-error (make-broadcast-stream error))
-        :status-hook (make-hook/on-death-close-streams input output error )
-        (when *env* (list :environment *env*))))))
+    (let ((input (if first (make-concatenated-stream input) input))
+          (output (if last (make-broadcast-stream output) output))
+          (error (or program-error (make-broadcast-stream error))))
+      `(:process
+        ,(apply #'
+          run-program
+          name
+          arguments
+          :search search
+          :wait wait
+          :input input
+          :output output
+          :directory *default-pathname-defaults*
+          :error error
+          :status-hook (unless wait
+                         (make-hook/on-death-close-streams input output error))
+          (when *env* (list :environment *env*)))))))
 
 (defmethod clean/tag ((tag (eql :process)) process)
-  (process-wait process))
+  (when (process-alive-p process)
+    (process-wait process)))
 
-(defmethod spawn ((function function) &key input output error wait)
-  (flet ((wrapped ()
-           (let ((*standard-input* input)
-                 (*standard-output* output)
-                 (*error-output* error))
-             (unwind-protect (funcall function)
-               (ensure-stream-closed/no-error input)
-               (ensure-stream-closed/no-error output)
-               (ensure-stream-closed/no-error error)))))
-    (if wait
-        `(:funcall ,(wrapped))
-        `(:thread ,(make-thread #'wrapped)))))
+(defmethod spawn ((function function) &key input output error wait first last)
+  (let ((input (if first (make-concatenated-stream input) input))
+        (output (if last (make-broadcast-stream output) output))
+        (error (make-broadcast-stream error)))
+    (flet ((wrapped ()
+             (let ((*standard-input* input)
+                   (*standard-output* output)
+                   (*error-output* error))
+               (unwind-protect (funcall function)
+                 (ensure-stream-closed/no-error input)
+                 (ensure-stream-closed/no-error output)
+                 (ensure-stream-closed/no-error error)))))
+      (if wait
+          `(:funcall ,(wrapped))
+          `(:thread ,(make-thread #'wrapped))))))
 
 (defmethod clean/tag ((tag (eql :funcall)) call-result)
   call-result)

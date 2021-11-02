@@ -6,6 +6,7 @@
                (:file "pipeline")
                (:file "filters")
                (:file "builtins")
-               (:file "nmcli")))
+               (:file "nmcli"))
+  :serial t)
 
 

@@ -163,10 +163,10 @@
                                :first first
                                :wait last)
          :do (unless wait
-               (register-resource spawned))))))
+               (register-resource spawned)))))))
 
-  (defmethod cleanup-resource (_ (p pipeline.pipes:pipe))
-    (pipeline.pipes:clean-pipe p)))
+(defmethod cleanup-resource (_ (p pipeline.pipes:pipe))
+  (pipeline.pipes:clean-pipe p))
 
 (defgeneric cleanup-resource-tag (pipeline tag value))
 

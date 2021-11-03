@@ -119,12 +119,8 @@
         (open-pipeline active)
         (close-pipeline active)))))
 
-(defmethod open-pipeline progn ((pipeline active-pipeline))
-  (let* ((size (1- (length (.filters pipeline))))
-         (pipes (make-pipes size)))
-    (declare (type simple-vector pipes))
-    (map () #'register-resource pipes)
-    
+(defmethod open-pipeline progn ((pipeline active-pipeline)
+                                &aux (length (length (.filters pipeline))))
     (setf (.input pipeline) 
           (%pipe-arg-input (.input pipeline)))
     (setf (.output pipeline)
@@ -132,31 +128,45 @@
     (setf (.error pipeline)
           (%pipe-arg-error (.error pipeline)
                            (.output pipeline)))
-    
-    (loop
-      :for filter :across (.filters pipeline)
-      :for p-in = (.input pipeline)
-        :then (pipe-in (svref pipes index))
-      :for index :upfrom 0
-      :for first = t :then nil
-      :for last = (= index size)
-      :for wait = last
-      :for p-out = (if last
-                       (.output pipeline)
-                       (pipe-out (svref pipes index)))
-      ;; may block until done
-      :for spawned = (spawn filter
-                            :input p-in
-                            :output p-out
-                            :error (make-broadcast-stream (.error pipeline))
-                            :last last
-                            :first first
-                            :wait wait)
-      :do (unless wait
-            (register-resource spawned)))))
+  (case length
+    (0)
+    (1 (spawn (aref (.filters pipeline) 0)
+              :input (.input pipeline)
+              :output (.output pipeline)
+              :error (make-broadcast-stream (.error pipeline))
+              :last t
+              :first t
+              :wait t))
+    (t 
+     (let* ((size (1- length))
+            (pipes (make-pipes size)))
+       (declare (type simple-vector pipes))
+       (map () #'register-resource pipes)
+       (loop
+         :for filter :across (.filters pipeline)
+         :for p-in = (.input pipeline)
+         :then (pipe-in (svref pipes index))
+         :for index :upfrom 0
+         :for first = t :then nil
+         :for last = (= index size)
+         :for wait = last
+         :for p-out = (if last
+                          (.output pipeline)
+                          (pipe-out (svref pipes index)))
+         ;; may block until done
+         :for spawned = (spawn filter
+                               :input p-in
+                               :output p-out
+                               :error (make-broadcast-stream
+                                       (.error pipeline))
+                               :last last
+                               :first first
+                               :wait last)
+         :do (unless wait
+               (register-resource spawned))))))
 
-(defmethod cleanup-resource (_ (p pipeline.pipes:pipe))
-  (pipeline.pipes:clean-pipe p))
+  (defmethod cleanup-resource (_ (p pipeline.pipes:pipe))
+    (pipeline.pipes:clean-pipe p)))
 
 (defgeneric cleanup-resource-tag (pipeline tag value))
 
@@ -168,17 +178,11 @@
   (sb-thread:join-thread v :default nil))
 
 (defmethod cleanup-resource-tag (_p (_t (eql :process)) v)
-  (sb-ext:process-wait v))
+  (when (sb-ext:process-alive-p v)
+    (sb-ext:process-wait v)))
 
 (defmethod cleanup-resource-tag (p (_t (eql :stream)) v)
   (close v))
-
-(define-condition pipeline-result ()
-  ((result :initarg :result :reader .result)))
-
-(defun signal-result (value)
-  (with-simple-restart (continue "Stop propagating signal")
-    (signal 'pipeline-result :result value)))
 
 (defmacro with-pipeline ((&key input (output t) (error :output)
                             channel)
@@ -216,9 +220,12 @@
   (lambda ()
     (handler-bind ((pipeline-result
                      (lambda (c)
-                       (let ((v (if name (cons name (.result c)) (.result c))))
-                         (trivial-channels:sendmsg channel v)
-                         (invoke-restart 'continue)))))
+                       (trivial-channels:sendmsg
+                        channel
+                        (make-condition 'pipeline-result
+                                        :name (or (.name c) name)
+                                        :result (.result c)))
+                       (invoke-restart 'continue))))
       (funcall function))))
 
 (defvar *%channel%*)
@@ -226,18 +233,22 @@
 (defmacro channeling-as (name &body body)
   `(redirecting-result-to *%channel%* (lambda () ,@body) :name ,name))
 
-(defun all-channel-values (channel)
-  (loop
-    with h = (make-hash-table)
-    for m = (trivial-channels:getmsg channel)
-    while m
-    if (consp m)
-    do (destructuring-bind (k . v) m (push v (gethash k h)))
-    else collect m into anonymous
-    finally
-       (return
-         (values anonymous
-                 (alexandria:hash-table-plist h)))))
+(defun all-channel-values (channel &aux (h (make-hash-table)) (anonymous nil))
+  (flet ((visit (name result)
+           (if name
+               (setf (gethash name h) result)
+               (push result anonymous))))
+    (loop
+      for m = (trivial-channels:getmsg channel)
+      while m
+      do (typecase m
+           (pipeline-result
+            (visit (.name m) (.result m)))
+           (t (visit nil m)))
+      finally
+         (return
+           (values (nreverse anonymous)
+                   (alexandria:hash-table-plist h))))))
 
 ;; (defmacro with-pipeline ((&key input (output t) (error :output))
 ;;                          &body processors)

@@ -50,17 +50,11 @@
 
 ;; (untrace)
 
-(defun keep-regex (regex)
-  (let ((scanner (ppcre:create-scanner regex)))
-    (lambda-line (line)
-      (when (ppcre:scan scanner line)
-        (write-line line)))))
-
-(with-pipeline (:error :string)
-  (program "ls" "/tmp")
-  (program "sort" "-Q")
-  (lambda-line (line)
-    (write-line line *error-output*)))
+;; (with-pipeline (:error :string)
+;;   (program "ls" "/tmp")
+;;   (program "sort" "-Q")
+;;   (lambda-line (line)
+;;     (write-line line *error-output*)))
 
 (let ((res (make-array 256
                        :initial-element 0 

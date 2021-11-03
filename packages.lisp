@@ -75,8 +75,10 @@
            #:program*
            #:with-pipeline
            #:signal-result
+           #:signal-named-result
            #:channeling-as
            #:program
+           #:keep-regex
            #:tee
            #:with-read-loop
            #:map-lines
@@ -92,7 +94,8 @@
            #:feed
            #:from-file
            #:to-file
-           #:line-collector))
+           #:line-collector
+           ))
 
 
 (defpackage :pipeline.tests

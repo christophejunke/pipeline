@@ -112,3 +112,8 @@
          (vector-push-extend line vector (array-total-size vector)))
        (coerce vector type)))))
 
+(defun keep-regex (regex)
+  (let ((scanner (ppcre:create-scanner regex)))
+    (lambda-line (line)
+      (when (ppcre:scan scanner line)
+        (write-line line)))))

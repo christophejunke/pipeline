@@ -6,8 +6,6 @@
     ((not (typep stream 'stream))
      (warn "Not a stream: ~a" stream))
     ((open-stream-p stream)
-     (when (output-stream-p stream)
-       (finish-output stream))
      (close stream))))
 
 (defstruct (pipe (:constructor make-pipe% (in out)))

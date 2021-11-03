@@ -21,7 +21,7 @@
     `(loop
        named ,(gensym)
        with ,sentinel = (gensym)
-       for ,value = (,(ecase read-fn ((read read-line) read-fn))
+       for ,value = (,(ecase read-fn ((read read-line read-char) read-fn))
                      *standard-input*
                      nil
                      ,sentinel)

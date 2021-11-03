@@ -74,6 +74,8 @@
            #:*env*
            #:program*
            #:with-pipeline
+           #:signal-result
+           #:channeling-as
            #:program
            #:tee
            #:with-read-loop

@@ -31,7 +31,7 @@ finish."))
   (make-instance 'program :name name :arguments args))
 
 (defun program (name &rest args)
-  (program* name args))
+  (program* name (mapcar #'princ-to-string args)))
 
 (defun error-to-output (program)
   (prog1 program
@@ -49,10 +49,11 @@ finish."))
       (warn-on-errors (:type error) (finish-output err))
       (ensure-stream-closed/no-error (process-input process))
       (ensure-stream-closed/no-error (process-output process))
-      (ensure-stream-closed/no-error (process-error process))
+      ;; (ensure-stream-closed/no-error (process-error process))
       (ensure-stream-closed/no-error in)
       (ensure-stream-closed/no-error out)
-      (ensure-stream-closed/no-error err))))
+      ;; (ensure-stream-closed/no-error err)
+      )))
 
 (defvar *env* '("LANG_ALL=C"))
 

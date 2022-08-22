@@ -1,5 +1,5 @@
 (defsystem :pipeline
-  :depends-on (:alexandria :trivial-channels :cl-ppcre)
+  :depends-on (:alexandria :bricabrac :trivial-channels :cl-ppcre)
   :components ((:file "packages")
                (:file "unix-pipes")
                (:file "signals")

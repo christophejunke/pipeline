@@ -21,8 +21,33 @@ finish."))
     (destructuring-bind (tag value) filter
       (clean/tag tag value))))
 
+(defvar *environment* '("LANG_ALL=C" "USE_COLORS=0" (:inherit :ssh_auth_sock)))
+
+(defun call-with-augmented-environment (environment function)
+  (flet ((preprocess (item)
+           (typecase item
+             (string item)
+             ((cons atom atom) (format nil "~a=~a" (car item) (cdr item)))
+             (t item))))
+    (let ((*environment* (append (delete nil (mapcar #'preprocess environment))
+                                 *environment*)))
+      (funcall function))))
+
+(defmacro with-augmented-environment ((&rest values) &body body)
+  `(call-with-augmented-environment
+    (list ,@(mapcar (lambda (v)
+                      (typecase v
+                        (keyword `(list :inherit ,v))
+                        ((cons atom (and atom (not null)))
+                         (destructuring-bind (key . value) v
+                           `(cons ',key ,value)))
+                        (t v)))
+                    values))
+    (lambda () ,@body)))
+
 (defclass program ()
   ((name :initarg :name)
+   (environment :initform *environment*)
    (arguments :initarg :arguments)
    (search :initarg :search :initform t)
    (error :initarg :error :initform nil :accessor error-of)))
@@ -45,21 +70,38 @@ finish."))
   (lambda (process)
     (unless (process-alive-p process)
       (ensure-stream-closed/no-error (process-input process))
-      (ensure-stream-closed/no-error (process-output process))
-      (ensure-stream-closed/no-error (process-error process))
       (ensure-stream-closed/no-error in)
+      (ensure-stream-closed/no-error (process-output process))
       (ensure-stream-closed/no-error out)
+      (ensure-stream-closed/no-error (process-error process))
       (ensure-stream-closed/no-error err))))
 
-(defvar *env* '("LANG_ALL=C"))
+(defun compute-environment (list)
+  (labels ((inherit (key)
+             (alexandria:when-let (value (osicat-posix:getenv (string key)))
+               (format nil "~a=~a" key value)))
+           (stringify (item)
+             (etypecase item
+               (string (list item))
+               ((cons (eql :inherit) list)
+                (delete nil (mapcar #'inherit (rest item)))))))
+    (mapcan #'stringify list)))
 
 (defmethod spawn ((program program) &key input output error wait first last)
-  (with-slots (name arguments search (program-error error)) program
-    (let* ((input (if first (make-concatenated-stream input) input))
-           (output (if last (make-broadcast-stream output) output))
-           (error (pipeline::%pipe-arg-error (or program-error
-                                                 (make-broadcast-stream error))
-                                             output)))
+  (with-slots (name arguments search (program-error error) environment) program
+    (let* ((input (if first
+                      (pipeline::register-resource
+                       (make-concatenated-stream input))
+                      input))
+           (output (if last
+                       (pipeline::register-resource
+                        (make-broadcast-stream output))
+                       output))
+           (error (pipeline::%pipe-arg-error
+                   (or program-error
+                       (pipeline::register-resource
+                        (make-broadcast-stream error)))
+                   output)))
       `(:process
         ,(apply #'
           run-program
@@ -72,17 +114,26 @@ finish."))
           :directory *default-pathname-defaults*
           :error error
           :status-hook (unless wait
-                         (make-hook/on-death-close-streams input output error))
-          (when *env* (list :environment *env*)))))))
+                         (make-hook/on-death-close-streams
+                          input output error))
+          (when environment
+            (list :environment (compute-environment
+                                environment))))))))
 
 (defmethod clean/tag ((tag (eql :process)) process)
   (when (process-alive-p process)
     (process-wait process)))
 
 (defmethod spawn ((function function) &key input output error wait first last)
-  (let ((input (if first (make-concatenated-stream input) input))
-        (output (if last (make-broadcast-stream output) output))
-        (error (make-broadcast-stream error)))
+  (let ((input (if first (pipeline::register-resource
+                          (make-concatenated-stream input))
+                   input))
+        (output (if last
+                    (pipeline::register-resource
+                     (make-broadcast-stream output))
+                    output))
+        (error (pipeline::register-resource
+                (make-broadcast-stream error))))
     (flet ((wrapped (&aux (warn-stream *error-output*))
              (let ((*standard-input* input)
                    (*standard-output* output)

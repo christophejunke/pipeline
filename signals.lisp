@@ -11,3 +11,4 @@
 (defun signal-named-result (name value)
   (with-simple-restart (continue "Stop propagating signal")
     (signal 'pipeline-result :name name :result value)))
+

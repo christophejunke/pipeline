@@ -57,7 +57,9 @@
            #:program
            #:program*
            #:error-to-output
-           #:*env*))
+           #:*environment*
+           #:call-with-augmented-environment
+           #:with-augmented-environment))
 
 (defpackage :pipeline
   (:documentation "")
@@ -71,7 +73,9 @@
            #:*in*
            #:*out*
            #:%
-           #:*env*
+           #:*environment*
+           #:call-with-augmented-environment
+           #:with-augmented-environment
            #:program*
            #:with-pipeline
            #:signal-result
@@ -90,6 +94,7 @@
            #:each-form
            #:lambda-form
            #:tee/error
+           #:broadcast
            #:read-form
            #:feed
            #:from-file

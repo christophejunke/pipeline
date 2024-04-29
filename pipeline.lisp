@@ -50,6 +50,8 @@
   ((is :initarg :input :accessor .input)
    (os :initarg :output :accessor .output)
    (es :initarg :error :accessor .error)
+   (mapping :initarg :mapping :accessor .mapping)
+   (channel :initarg :channel :accessor channel-of :initform nil)
    (filters :initarg :filters :reader .filters)))
 
 (defun fresh-string-stream ()
@@ -83,20 +85,27 @@
     ((eql t) *error-output*)
     (stream error-stream)))
 
-(defun make-pipeline (input output error filters)
+(defun make-pipeline (input output error redirect mapping filters)
   (make-instance 'pipeline
                  :input input
                  :output output
+                 :mapping mapping
                  :error error
+                 :channel redirect
                  :filters (coerce filters 'simple-vector)))
 
 (defclass active-pipeline (simple-handler-mixin pipeline)
   ((pipeline :reader .pipeline :initarg :pipeline)
-   (open :initform nil :accessor .open)))
+   (open :initform nil :accessor .open)
+   (foldenv :initform nil :accessor foldenv)
+   (named-results :initform (make-hash-table :test #'equalp)
+                  :accessor named-results)
+   (results :initform nil :accessor results)
+   (id :initform (gensym (string '#:PIPELINE)) :reader pipeline-id)))
 
 (defmethod print-object ((p active-pipeline) stream)
   (print-unreadable-object (p stream :type t :identity t)
-    (format stream "~:[CLOSED~;OPEN~]" (.open p))))
+    (format stream "~A ~:[CLOSED~;OPEN~]" (pipeline-id p) (.open p))))
 
 (defgeneric open-pipeline (pipeline)
   (:method-combination progn :most-specific-last)
@@ -112,14 +121,17 @@
   (:method :around ((pipeline active-pipeline))
     (prog2 (assert (.open pipeline))
         (call-next-method)
-      (setf (.open pipeline) nil))))
+      (setf (.open pipeline) nil)
+      (setf (channel-of pipeline) nil))))
 
 (defun get-output-string (pipeline)
   (get-output-stream-string (.output pipeline)))
 
 (defun %execute-pipeline (pipeline)
   (check-type pipeline pipeline)
-  (let ((active (make-instance 'active-pipeline 
+  (let ((active (make-instance 'active-pipeline
+                               :channel (channel-of pipeline)
+                               :mapping (.mapping pipeline)
                                :pipeline pipeline
                                :input (.input pipeline)
                                :output (.output pipeline)
@@ -132,6 +144,9 @@
 
 (defmethod open-pipeline progn ((pipeline active-pipeline)
                                 &aux (length (length (.filters pipeline))))
+
+  (make-channel-collector pipeline)
+
   (setf (.input pipeline)
         (%pipe-arg-input (.input pipeline)))
   (setf (.output pipeline)
@@ -142,6 +157,7 @@
   (case length
     (0)
     (1 (spawn (aref (.filters pipeline) 0)
+              :pipeline pipeline
               :input (.input pipeline)
               :output (.output pipeline)
               :error (register-resource
@@ -168,6 +184,7 @@
                           (pipe-out (svref pipes index)))
          ;; may block until done
          :for spawned = (spawn filter
+                               :pipeline pipeline
                                :input p-in
                                :output p-out
                                :error (register-resource
@@ -204,8 +221,42 @@
 (defmethod cleanup-resource-tag (p (_t (eql :stream)) v)
   (close v :abort t))
 
+(defmethod cleanup-resource-tag (p (_t (eql :channel-thread)) v)
+  (destructuring-bind (&key channel thread) v
+    (trivial-channels:sendmsg channel :done)
+    (cleanup-resource-tag p :thread thread)))
+
+(defun make-channel-collector (pipeline
+                               &aux
+                               (p pipeline)
+                               (channel (channel-of p)))
+  (when channel
+    (flet ((event-loop ()
+             (loop
+               for m = (trivial-channels:recvmsg channel)
+               while m
+               do (typecase m
+                    ((eql :done)
+                     (return))
+                    (pipeline-fold
+                     (setf (foldenv p)
+                           (foldenv:fold-environments%
+                            (foldenv p)
+                            (list (.name m) (.result m))
+                            (.mapping p))))
+                    (pipeline-result
+                     (if (.name m)
+                         (push (.result m) (gethash (.name m) (named-results p)))
+                         (push (.result m) (results p))))
+                    (t (push m (results p)))))))
+      (let ((name (format nil "channel-collector-~a" (pipeline-id pipeline))))
+        (register-resource
+         `(:channel-thread (:thread ,(bt:make-thread #'event-loop :name name)
+                            :channel ,channel)))))))
+
 (defmacro with-pipeline ((&key input (output t) (error :output)
-                            channel (trace nil) (env nil))
+                               (channel t) (trace nil) (env nil)
+                               (mapping nil))
                          &body filters)
   "#<WITH-PIPELINE DOCUMENTATION>
 
@@ -218,10 +269,9 @@ eventually as a list.
              (make-pipeline ,input
                             ,output
                             ,error
-                            ,(if redirect
-                                 `(let ((*%channel%* ,redirect))
-                                    (list ,@filters))
-                                 `(list ,@filters)))))
+                            ,redirect
+                            ,mapping
+                            (list ,@filters))))
          (maybe-trace (expr)
            (if trace
                (let ((traced (if (consp trace)
@@ -242,36 +292,23 @@ eventually as a list.
              (null
               (common-code :redirect nil))
              ((eql t)
-              (with-gensyms (channel condition)
+              (with-gensyms (channel)
                 `(let ((,channel (trivial-channels:make-channel)))
-                   (handler-bind ((pipeline-result 
-                                    (lambda (,condition)
-                                      (trivial-channels:sendmsg
-                                       ,channel ,condition)
-                                      (invoke-restart 'continue))))
-                     ,(common-code :redirect channel))
-                   (all-channel-values ,channel))))
+                    ,(common-code :redirect channel))))
              (symbol
               (common-code :redirect channel))))))))
 
 ;; (trace cleanup-resource register-resource open-pipeline close-pipeline)
 
-(defun redirecting-result-to (channel function &key name)
+(defun redirecting-result-to (channel function)
   (lambda ()
     (handler-bind ((pipeline-result
                      (lambda (c)
-                       (trivial-channels:sendmsg
-                        channel
-                        (make-condition 'pipeline-result
-                                        :name (or (.name c) name)
-                                        :result (.result c)))
+                       (trivial-channels:sendmsg channel c)
                        (invoke-restart 'continue))))
       (funcall function))))
 
 (defvar *%channel%*)
-
-(defmacro channeling-as (name &body body)
-  `(redirecting-result-to *%channel%* (lambda () ,@body) :name ,name))
 
 (defun all-channel-values (channel &aux (h (make-hash-table)) (anonymous nil))
   (flet ((visit (name result)
@@ -287,8 +324,8 @@ eventually as a list.
            (t (visit nil m)))
       finally
          (return
-           (values (nreverse anonymous)
-                   (alexandria:hash-table-plist h))))))
+           (list* t (nreverse anonymous)
+                  (alexandria:hash-table-plist h))))))
 
 (defun execute (&rest args)
   (destructuring-bind (keyword process)

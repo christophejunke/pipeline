@@ -1,6 +1,6 @@
 (in-package :pipeline.filters)
 
-(defgeneric spawn (command &key input output error wait first last)
+(defgeneric spawn (command &key pipeline input output error wait first last)
   (:documentation
    "Create the program or thread that executes the given COMMAND.
 
@@ -88,7 +88,7 @@ finish."))
                 (delete nil (mapcar #'inherit (rest item)))))))
     (mapcan #'stringify list)))
 
-(defmethod spawn ((program program) &key input output error wait first last)
+(defmethod spawn ((program program) &key pipeline input output error wait first last)
   (with-slots (name arguments search (program-error error) environment) program
     (let* ((input (if first
                       (pipeline::register-resource
@@ -125,7 +125,13 @@ finish."))
   (when (process-alive-p process)
     (process-wait process)))
 
-(defmethod spawn ((function function) &key input output error wait first last)
+(declaim (inline channel-to))
+
+(defun channel-to (channel function)
+  (check-type channel trivial-channels:channel)
+  (pipeline:redirecting-result-to channel function))
+
+(defmethod spawn ((function function) &key pipeline input output error wait first last)
   (let ((input (if first (pipeline::register-resource
                           (make-concatenated-stream input))
                    input))
@@ -135,11 +141,13 @@ finish."))
                     output))
         (error (pipeline::register-resource
                 (make-broadcast-stream error))))
-    (flet ((wrapped (&aux (warn-stream *error-output*))
-             (let ((*standard-input* input)
+    (flet ((wrapped (&aux (warn-stream *error-output*)
+                          (channel (pipeline:channel-of pipeline)))
+             (let ((wrapped (if channel (channel-to channel function) function))
+                   (*standard-input* input)
                    (*standard-output* output)
                    (*error-output* error))
-               (unwind-protect (handler-case (funcall function)
+               (unwind-protect (handler-case (funcall wrapped)
                                  (error (e)
                                    (let ((*error-output* warn-stream))
                                      (warn "caught error ~s" e))))

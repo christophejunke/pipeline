@@ -79,6 +79,7 @@
            #:channeling-as
            #:program
            #:keep-regex
+           #:line-reservoir-sampling
            #:tee
            #:with-read-loop
            #:map-lines

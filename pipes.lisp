@@ -6,7 +6,7 @@
     ((not (typep stream 'stream))
      (warn "Not a stream: ~a" stream))
     ((open-stream-p stream)
-     (close stream))))
+     (ignore-errors (close stream)))))
 
 (defstruct (pipe (:constructor make-pipe% (in out)))
   (in  nil :read-only t)

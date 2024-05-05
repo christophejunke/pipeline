@@ -117,3 +117,12 @@
     (lambda-line (line)
       (when (ppcre:scan scanner line)
         (write-line line)))))
+
+(defun line-reservoir-sampling 
+    (size 
+     &key (result-fn #'pipeline.utils:write-vector-as-lines))
+  (pipeline.utils:with-reservoir-sampling (sample) size
+    (lambda ()
+      (unwind-protect (with-read-loop (line read-line)
+                        (sample line))
+        (funcall result-fn sample)))))

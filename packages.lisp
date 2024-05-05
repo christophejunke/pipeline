@@ -57,7 +57,9 @@
            #:program
            #:program*
            #:error-to-output
-           #:*env*))
+           #:*environment*
+           #:call-with-augmented-environment
+           #:with-augmented-environment))
 
 (defpackage :pipeline
   (:documentation "")
@@ -71,12 +73,16 @@
            #:*in*
            #:*out*
            #:%
-           #:*env*
+           #:*environment*
+           #:call-with-augmented-environment
+           #:with-augmented-environment
            #:program*
+           #:redirecting-result-to
            #:with-pipeline
+           #:signal-fold
            #:signal-result
            #:signal-named-result
-           #:channeling-as
+           #:channel-of
            #:program
            #:keep-regex
            #:line-reservoir-sampling
@@ -91,13 +97,22 @@
            #:each-form
            #:lambda-form
            #:tee/error
+           #:broadcast
            #:read-form
            #:feed
            #:from-file
            #:to-file
            #:line-collector
-           ))
-
+           #:reservoir-sampling
+           #:uniq
+           #:print-sequence
+           #:signal-each-line
+           #:reservoir-sampling-pipe
+           #:sequence-emitter
+           
+           #:foldenv
+           #:named-results
+           #:results))
 
 (defpackage :pipeline.tests
   (:use :cl :pipeline)

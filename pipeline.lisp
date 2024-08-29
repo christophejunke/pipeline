@@ -105,7 +105,11 @@
 
 (defmethod print-object ((p active-pipeline) stream)
   (print-unreadable-object (p stream :type t :identity t)
-    (format stream "~A ~:[CLOSED~;OPEN~]" (pipeline-id p) (.open p))))
+    (format stream
+            "~A (~:[closed~;open~]) ~d result~:p"
+            (pipeline-id p)
+            (.open p)
+            (length (results p)))))
 
 (defgeneric open-pipeline (pipeline)
   (:method-combination progn :most-specific-last)
@@ -240,7 +244,7 @@
                      (return))
                     (pipeline-fold
                      (setf (foldenv p)
-                           (foldenv:fold-environments%
+                           (foldenv:combine
                             (foldenv p)
                             (list (.name m) (.result m))
                             (.mapping p))))

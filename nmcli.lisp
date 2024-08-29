@@ -50,19 +50,15 @@
     (slice string s e )))
 
 (defun connections ()
-  (with-pipeline () 
-    (program "nmcli" "--fields" "name,uuid,type" "connection")
-    (lambda ()
-      (let ((connections (make-array 64 :fill-pointer 0 :adjustable t)))
-        (with-read-loop (line read-line)
-          (flet ((trim (s &optional e) (trim #\space line s e)))
-            (declare (inline trim))
-            (multiple-value-bind (start end) (scan "[0-9a-f-]{36}" line)
-              (when start
-                (vector-push-extend (connection :name (trim 0 start)
-                                                :uuid (trim start end)
-                                                :type (trim end))
-                                    connections
-                                    (array-total-size connections))))))
-        (return connections)))))
+  (results
+   (with-pipeline () 
+     (program "nmcli" "--fields" "name,uuid,type" "connection")
+     (lambda-line (line)
+       (flet ((trim (s &optional e) (trim #\space line s e)))
+         (declare (inline trim))
+         (multiple-value-bind (start end) (scan "[0-9a-f-]{36}" line)
+           (when start
+             (signal-result (connection :name (trim 0 start)
+                                        :uuid (trim start end)
+                                        :type (trim end))))))))))
 

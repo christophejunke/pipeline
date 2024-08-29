@@ -31,7 +31,8 @@
 
 (iolib.os::slurp-char-stream (iolib.os:process-stdout *q*))
 
-(iolib/os:process-kill *p*)
+(iolib/os:process-kill *q*)
+(iolib/os:process-kill *q*)
 
 (setf *q* (iolib/os:create-process '("/usr/bin/wc" "-l") :stdin (iolib/os:process-stdin *p*) :stdout #P"/tmp/test"))
 

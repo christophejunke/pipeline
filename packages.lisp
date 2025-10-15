@@ -54,6 +54,7 @@
   (:export #:spawn
            #:clean
            #:clean/tag
+           #:command
            #:program
            #:program*
            #:error-to-output
@@ -70,6 +71,7 @@
                 #:with-gensyms
                 #:once-only)
   (:export #:program
+           #:command
            #:*in*
            #:*out*
            #:%
@@ -77,6 +79,7 @@
            #:call-with-augmented-environment
            #:with-augmented-environment
            #:program*
+           #:.failures
            #:redirecting-result-to
            #:with-pipeline
            #:signal-fold
@@ -84,6 +87,7 @@
            #:signal-named-result
            #:channel-of
            #:program
+           #:error-to-output
            #:keep-regex
            #:tee
            #:with-read-loop
@@ -108,7 +112,7 @@
            #:signal-each-line
            #:reservoir-sampling-pipe
            #:sequence-emitter
-           
+
            #:foldenv
            #:named-results
            #:results))

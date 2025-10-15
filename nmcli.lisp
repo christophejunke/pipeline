@@ -1,5 +1,8 @@
 (defpackage #:pipeline.nmcli
-  (:use #:cl #:alexandria #:cl-ppcre #:pipeline)
+  (:use #:pipeline)
+  (:use #:cl-ppcre)
+  (:use #:alexandria)
+  (:use #:cl)
   (:nicknames :nmcli)
   (:export #:connections
            #:device-type
@@ -8,61 +11,31 @@
 
 (in-package #:pipeline.nmcli)
 
-(defstruct
-    (connection
-     (:constructor connection (&key ((:type device-type)) name uuid))
-     (:conc-name))
-  name
-  uuid
-  device-type)
+(defstruct (connection
+            (:constructor connection (&key ((:type device-type)) name uuid))
+            (:constructor connection% (name uuid device-type))
+            (:conc-name))
+  name uuid device-type)
 
-(defun slice (string start end)
-  (make-array (- (or end (length string)) start)
-              :element-type (array-element-type string)
-              :displaced-to string
-              :displaced-index-offset start))
+(defmethod print-object ((o connection) stream)
+  (if *print-readably*
+      (call-next-method)
+      (format stream "#<~a connection ~a>" (device-type o) (name o))))
 
-(defun trim-bounds (bucket side string start end)
-  (setf end (or end (length string)))
-  (check-type side (member :both :right :left))
-  (let ((bucketp (etypecase bucket
-                   (null (return-from trim-bounds (values start end)))
-                   (string (lambda (c) (find c bucket)))
-                   (character (lambda (c) (char= c bucket)))
-                   (cons (lambda (c) (member c bucket :test #'char=))))))
-    (labels ((non-bucket-pos (from-end)
-               (position-if-not bucketp
-                                string
-                                :from-end from-end
-                                :start start
-                                :end end)))
-      (when (member side '(:both :left))
-        (setf start (non-bucket-pos nil)))
-      (if start
-          (values start
-                  (if (member side '(:both :right))
-                      (1+ (non-bucket-pos t))
-                      end))
-          (values 0 0)))))
+(define-parse-tree-synonym uuid (:regex "[0-9a-f-]{36}"))
 
-(defun trim (bucket string &optional (start 0) end (side :both))
-  (multiple-value-bind (s e) (trim-bounds bucket side string start end)
-    (slice string s e )))
+(define-parse-tree-synonym separator #\COLON)
+
+(define-parse-tree-synonym nmcli-splitter
+    (:sequence separator (:register uuid) separator))
 
 (defun connections ()
-  (with-pipeline () 
-    (program "nmcli" "--fields" "name,uuid,type" "connection")
-    (lambda ()
-      (let ((connections (make-array 64 :fill-pointer 0 :adjustable t)))
-        (with-read-loop (line read-line)
-          (flet ((trim (s &optional e) (trim #\space line s e)))
-            (declare (inline trim))
-            (multiple-value-bind (start end) (scan "[0-9a-f-]{36}" line)
-              (when start
-                (vector-push-extend (connection :name (trim 0 start)
-                                                :uuid (trim start end)
-                                                :type (trim end))
-                                    connections
-                                    (array-total-size connections))))))
-        (return connections)))))
+  "List of all connections known to network-manager"
+  (let ((scanner (load-time-value (create-scanner 'nmcli-splitter))))
+    (with-pipeline (:return :results)
+      (command "nmcli --terse --fields name,uuid,type connection")
+      (lambda-line (line)
+        (let ((split (split scanner line :sharedp t :with-registers-p t)))
+          (destructuring-bind (name uuid type) split
+            (signal-result (connection% name uuid type))))))))
 

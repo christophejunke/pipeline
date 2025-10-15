@@ -54,7 +54,8 @@
     `(loop
        named ,(gensym)
        with ,sentinel = (gensym)
-       for ,value = (,(ecase read-fn ((read read-line read-char) read-fn))
+       for ,value = (,(ecase read-fn ((read read-line read-char read-byte)
+                                      read-fn))
                      *standard-input*
                      nil
                      ,sentinel)

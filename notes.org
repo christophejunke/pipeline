@@ -1,0 +1,37 @@
+* circular buffer
+
++ two actors
+
+  - one producer
+  - one consumer
+
++ each actor must define activate/deactivate functions.
+
++ each actor is given an =on_ready= callback with =activate= (or
+  during actor initialization), to call whenever new data is ready to
+  be read or written.
+
++ each actor must define fill-buffer/flush-buffer functions, which
+  work on a foreign array with begin/end indices (or start/length?);
+  the functions return that actual amount of bytes that were actually
+  consumed; the secondary value is T when eof is reached. A negative
+  amount of produced/consumed data also counts as EOF.
+
+** fd actor
+
+activate/deactivate = set-io-handler/remove-fd-handlers for the
+appropriate event (:read/:write); read(2), write(2) for
+fill-buffer and flush-buffer respectively (because e.g. read
+fills the buffer from a fd).
+
+
+
+* storage
+
+
+the intent is to avoid calling system calls for small batches of data.
+if e.g. the buffer size is 4096, maybe we don't want to exchange data
+that is smaller than 1024 bytes (except when the producer is dead).
+
+1MB buffer
+1024

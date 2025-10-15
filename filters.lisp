@@ -21,8 +21,9 @@ finish."))
     (destructuring-bind (tag value) filter
       (clean/tag tag value))))
 
-(defvar *environment* 
-  '("LANG_ALL=C" "USE_COLORS=0" (:inherit :ssh_auth_sock)))
+(defvar *environment*
+  '("LANG_ALL=C" "USE_COLORS=0"
+    (:inherit :ssh_auth_sock)))
 
 (defun call-with-augmented-environment (environment function)
   (flet ((preprocess (item)
@@ -30,8 +31,9 @@ finish."))
              (string item)
              ((cons atom atom) (format nil "~a=~a" (car item) (cdr item)))
              (t item))))
-    (let ((*environment* (append (delete nil (mapcar #'preprocess environment))
-                                 *environment*)))
+    (let ((*environment*
+            (append (delete nil (mapcar #'preprocess environment))
+                    *environment*)))
       (funcall function))))
 
 (defmacro with-augmented-environment ((&rest values) &body body)
@@ -39,7 +41,9 @@ finish."))
     (list ,@(mapcar (lambda (v)
                       (typecase v
                         (keyword `(list :inherit ,v))
-                        ((cons atom (and atom (not null)))
+                        ((cons (eql :-) t)
+                         (cdr v))
+                        ((cons atom (not null))
                          (destructuring-bind (key . value) v
                            `(cons ',key ,value)))
                         (t v)))
@@ -59,6 +63,15 @@ finish."))
 (defun program (name &rest args)
   (program* name (mapcar #'princ-to-string args)))
 
+(defun command (string)
+  "Split string by spaces, if escaping is a problem use PROGRAM"
+  (apply #'program (ppcre:split #\space string)))
+
+(define-compiler-macro command (&whole whole string)
+  (if (stringp string)
+      `(program ,@(ppcre:split #\space string))
+      whole))
+
 (defun error-to-output (program)
   (prog1 program
     (setf (error-of program) :output)))
@@ -70,6 +83,9 @@ finish."))
 (defun make-hook/on-death-close-streams (in out err)
   (lambda (process)
     (unless (process-alive-p process)
+      ;; flush process fd-handlers
+      (sb-sys:serve-all-events 0)
+      ;; close streams so that other processes/events in pipeline see EOF
       (ensure-stream-closed/no-error (process-input process))
       (ensure-stream-closed/no-error in)
       (ensure-stream-closed/no-error (process-output process))
@@ -78,15 +94,43 @@ finish."))
       (ensure-stream-closed/no-error err))))
 
 (defun compute-environment (list)
-  (labels ((inherit (key)
-             (alexandria:when-let (value (osicat-posix:getenv (string key)))
-               (format nil "~a=~a" key value)))
-           (stringify (item)
-             (etypecase item
-               (string (list item))
-               ((cons (eql :inherit) list)
-                (delete nil (mapcar #'inherit (rest item)))))))
-    (mapcan #'stringify list)))
+  (let ((projection (make-hash-table))
+        (raw-strings nil))
+    (flet ((getenv (key)
+             (osicat-posix:getenv (string key)))
+           (checked-set (key value)
+             (let ((current (gethash key projection)))
+               (if current
+                   (warn "ignore ~s = ~s" key value)
+                   (setf (gethash key projection) value))))
+           (insert (key value)
+             (let ((v (gethash key projection)))
+               (setf (gethash key projection)
+                     (list* value
+                            (etypecase v
+                              (list v)
+                              (t (list v))))))))
+      (dolist (item list)
+        (typecase item
+          (string (push item raw-strings))
+          (cons (destructuring-bind (token . args) item
+                  (ecase token
+                    (:inherit
+                     (dolist (key args)
+                       (checked-set key (getenv key))))
+                    (:push
+                     (destructuring-bind (where what) args
+                       (insert where what))))))))
+      (with-hash-table-iterator (next projection)
+        (loop
+          (multiple-value-bind (vp key value) (next)
+            (unless vp (return))
+            (push (format nil
+                          "~a=~{~a~^:~}"
+                          key
+                          (alexandria:ensure-list value))
+                  raw-strings))))
+      (nreverse raw-strings))))
 
 (defmethod spawn ((program program) &key pipeline input output error wait first last)
   (with-slots (name arguments search (program-error error) environment) program
@@ -141,16 +185,12 @@ finish."))
                     output))
         (error (pipeline::register-resource
                 (make-broadcast-stream error))))
-    (flet ((wrapped (&aux (warn-stream *error-output*)
-                          (channel (pipeline:channel-of pipeline)))
+    (flet ((wrapped (&aux (channel (pipeline:channel-of pipeline)))
              (let ((wrapped (if channel (channel-to channel function) function))
                    (*standard-input* input)
                    (*standard-output* output)
                    (*error-output* error))
-               (unwind-protect (handler-case (funcall wrapped)
-                                 (error (e)
-                                   (let ((*error-output* warn-stream))
-                                     (warn "caught error ~s" e))))
+               (unwind-protect (funcall wrapped)
                  (ensure-stream-closed/no-error input)
                  (ensure-stream-closed/no-error output)
                  (ensure-stream-closed/no-error error)))))

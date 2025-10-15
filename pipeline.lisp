@@ -38,7 +38,21 @@
   (prog1 resource
     (pushnew resource (.resources h))))
 
+(defun resource< (a b)
+  (flet ((processp (resource)
+           (and (consp resource)
+                (eq :process (car resource)))))
+    (let ((pa (processp a))
+          (pb (processp b)))
+      (cond
+        ((and pa pb) nil)
+        (pa t)
+        (pb nil)
+        (t nil)))))
+
 (defmethod exit-handler ((handler simple-handler-mixin))
+  (setf (.resources handler)
+        (stable-sort (.resources handler) #'resource<))
   (with-simple-restart (ignore "Ignore all remaining resources")
     (loop
       while (.resources handler)
@@ -96,6 +110,7 @@
 
 (defclass active-pipeline (simple-handler-mixin pipeline)
   ((pipeline :reader .pipeline :initarg :pipeline)
+   (failures :initform nil :accessor .failures)
    (open :initform nil :accessor .open)
    (foldenv :initform nil :accessor foldenv)
    (named-results :initform (make-hash-table :test #'equalp)
@@ -127,8 +142,12 @@
 (defun get-output-string (pipeline)
   (get-output-stream-string (.output pipeline)))
 
-(defun %execute-pipeline (pipeline)
+(deftype pipeline-result-mode ()
+  `(member t nil :results :result :all :named :values))
+
+(defun %execute-pipeline (pipeline &key mode)
   (check-type pipeline pipeline)
+  (check-type mode pipeline-result-mode)
   (let ((active (make-instance 'active-pipeline
                                :channel (channel-of pipeline)
                                :mapping (.mapping pipeline)
@@ -137,10 +156,18 @@
                                :output (.output pipeline)
                                :error (.error pipeline)
                                :filters (.filters pipeline))))
-    (prog1 active
-      (with-resource-handler (active)
-        (open-pipeline active)
-        (close-pipeline active)))))
+    (with-resource-handler (active)
+      (open-pipeline active)
+      (close-pipeline active))
+    (case mode
+      ((t) active)
+      ((nil) nil)
+      ((:results :result) (results active))
+      ((:named (named-results active)))
+      ((:all :values)
+       (values active
+               (results active)
+               (named-results active))))))
 
 (defmethod open-pipeline progn ((pipeline active-pipeline)
                                 &aux (length (length (.filters pipeline))))
@@ -156,17 +183,18 @@
                          (.output pipeline)))
   (case length
     (0)
-    (1 (spawn (aref (.filters pipeline) 0)
-              :pipeline pipeline
-              :input (.input pipeline)
-              :output (.output pipeline)
-              :error (register-resource
-                      (make-broadcast-stream
-                       (.error pipeline)))
-              :last t
-              :first t
-              :wait t))
-    (t 
+    (1 (register-resource
+        (spawn (aref (.filters pipeline) 0)
+               :pipeline pipeline
+               :input (.input pipeline)
+               :output (.output pipeline)
+               :error (register-resource
+                       (make-broadcast-stream
+                        (.error pipeline)))
+               :last t
+               :first t
+               :wait t)))
+    (t
      (let* ((size (1- length))
             (pipes (make-pipes size)))
        (declare (type simple-vector pipes))
@@ -211,10 +239,12 @@
 (defmethod cleanup-resource-tag (_p (_t (eql :thread)) v)
   (sb-thread:join-thread v :default nil))
 
-(defmethod cleanup-resource-tag (_p (_t (eql :process)) v)
+(defmethod cleanup-resource-tag (p (_t (eql :process)) v)
   (when (sb-ext:process-alive-p v)
     (sb-ext:process-wait v))
-  (sb-ext:process-close v))
+  (sb-ext:process-close v)
+  (unless (eql 0 (sb-ext:process-exit-code v))
+    (push v (.failures p))))
 
 (defmethod cleanup-resource-tag (_p (_t (eql :funcall)) v))
 
@@ -254,8 +284,14 @@
          `(:channel-thread (:thread ,(bt:make-thread #'event-loop :name name)
                             :channel ,channel)))))))
 
+;; (trace spawn cleanup-resource-tag cleanup-resource
+;;                                    register-resource make-pipe open-pipeline close-pipeline
+;;                                    ensure-stream %pipe-arg-error %pipe-arg-output
+;;                                    %pipe-arg-input)
+
 (defmacro with-pipeline ((&key input (output t) (error :output)
                                (channel t) (trace nil) (env nil)
+                               (return t)
                                (mapping nil))
                          &body filters)
   "#<WITH-PIPELINE DOCUMENTATION>
@@ -271,7 +307,8 @@ eventually as a list.
                             ,error
                             ,redirect
                             ,mapping
-                            (list ,@filters))))
+                            (list ,@filters))
+             :mode ,return))
          (maybe-trace (expr)
            (if trace
                (let ((traced (if (consp trace)
@@ -294,7 +331,7 @@ eventually as a list.
              ((eql t)
               (with-gensyms (channel)
                 `(let ((,channel (trivial-channels:make-channel)))
-                    ,(common-code :redirect channel))))
+                   ,(common-code :redirect channel))))
              (symbol
               (common-code :redirect channel))))))))
 

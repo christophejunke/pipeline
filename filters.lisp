@@ -54,11 +54,16 @@ finish."))
   ((name :initarg :name)
    (environment :initform *environment*)
    (arguments :initarg :arguments)
+   (directory :initarg :directory :accessor directory-of)
    (search :initarg :search :initform t)
    (error :initarg :error :initform nil :accessor error-of)))
 
-(defun program* (name args)
-  (make-instance 'program :name name :arguments args))
+(defmethod initialize-instance :after ((p program) &key &allow-other-keys)
+  (when (eq t (slot-value p 'directory))
+    (setf (slot-value p 'directory) *default-pathname-defaults*)))
+
+(defun program* (name args &rest extra-args)
+  (apply #'make-instance 'program :name name :arguments args extra-args))
 
 (defun program (name &rest args)
   (program* name (mapcar #'princ-to-string args)))
@@ -132,7 +137,7 @@ finish."))
                   raw-strings))))
       (nreverse raw-strings))))
 
-(defmethod spawn ((program program) &key pipeline input output error wait first last)
+(defmethod spawn ((program program) &key input output error wait first last &allow-other-keys)
   (with-slots (name arguments search (program-error error) environment) program
     (let* ((input (if first
                       (pipeline::register-resource
@@ -156,7 +161,8 @@ finish."))
           :wait wait
           :input input
           :output output
-          :directory *default-pathname-defaults*
+          :directory (or (slot-value program 'directory)
+                         *default-pathname-defaults*)
           :error error
           :status-hook (unless wait
                          (make-hook/on-death-close-streams

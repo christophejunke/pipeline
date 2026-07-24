@@ -20,29 +20,34 @@
       (t (append (reverse split) old)))))
 
 (define-local-keyword .address
-  "D-Bus address :session, :system, or an address")
+  (:documentation "D-Bus address :session, :system, or an address")
+  (:variables address))
 
 (define-local-keyword .interface
-  "D-Bus interface (defaults to the service name)")
+  (:documentation "D-Bus interface (defaults to the service name)")
+  (:variables interface))
 
 (define-local-keyword .bus
-  "D-Bus bus instance")
+  (:documentation "D-Bus bus instance")
+  (:variables bus))
 
 (define-local-keyword .service
-  "Dot-separated string naming the destination service")
+  (:documentation "Dot-separated string naming the destination service")
+  (:variables service))
 
 (define-local-keyword .path
-  "Slash-separated path (defaults to path derived from service)")
+  (:documentation "Slash-separated path (defaults to path derived from service)")
+  (:variables path))
 
 (defun .service ()
-  (resolve .service *dbus*))
+  (env *dbus* .service))
 
 (defun .bus ()
-  (resolve .bus *dbus*))
+  (env *dbus* .bus))
 
-(defun service-components (&optional (env foldenv:*environment*))
+(defun service-components (&optional env)
   "Components of a dot-separated string in reverse order"
-  (extend (resolve .service env) #\. nil))
+  (extend (env env .service) #\. nil))
 
 (defmethod fold-for-key ((key (eql .interface)) old new)
   (etypecase new
@@ -58,15 +63,15 @@
 
 (defun .path (&optional string)
   (with-environment *dbus* (.path string)
-    (environment-bind (.path) *dbus*
+    (environment-bind (path) *dbus*
       (format nil
               "/~{~a~^/~}"
-              (reverse (or .path (service-components *dbus*)))))))
+              (reverse (or path (service-components *dbus*)))))))
 
 (defun .interface (&optional string)
   (with-environment *dbus* (.interface string)
-    (environment-bind (.interface .service) *dbus*
-      (format nil "~{~a~^.~}" (reverse (or .interface .service))))))
+    (environment-bind (interface service) *dbus*
+      (format nil "~{~a~^.~}" (reverse (or interface service))))))
 
 (defun resolve-bus-address (address)
   (ecase address

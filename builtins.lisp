@@ -1,4 +1,4 @@
-(in-package :pipeline)
+d(in-package :pipeline)
 
 ;; (defun tee (&rest streams)
 ;;   (lambda ()
@@ -147,10 +147,22 @@
          (vector-push-extend line vector (array-total-size vector)))
        (coerce vector type)))))
 
+(export
+ (defun all-lines (&optional name)
+   (if name
+       (lambda-line (line) (signal-named-result name line))
+       (lambda-line (line) (signal-result line)))))
+
 (defun keep-regex (regex)
   (let ((scanner (ppcre:create-scanner regex)))
     (lambda-line (line)
       (when (ppcre:scan scanner line)
+        (write-line line)))))
+
+(defun reject-regex (regex)
+  (let ((scanner (ppcre:create-scanner regex)))
+    (lambda-line (line)
+      (unless (ppcre:scan scanner line)
         (write-line line)))))
 
 (export

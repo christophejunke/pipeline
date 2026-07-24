@@ -143,31 +143,33 @@
   (get-output-stream-string (.output pipeline)))
 
 (deftype pipeline-result-mode ()
-  `(member t nil :results :result :all :named :values))
+  `(member t nil :results :result :all :named :values :plist :alist))
 
 (defun %execute-pipeline (pipeline &key mode)
   (check-type pipeline pipeline)
   (check-type mode pipeline-result-mode)
-  (let ((active (make-instance 'active-pipeline
-                               :channel (channel-of pipeline)
-                               :mapping (.mapping pipeline)
-                               :pipeline pipeline
-                               :input (.input pipeline)
-                               :output (.output pipeline)
-                               :error (.error pipeline)
-                               :filters (.filters pipeline))))
-    (with-resource-handler (active)
-      (open-pipeline active)
-      (close-pipeline active))
+  (let ((pipeline (make-instance 'active-pipeline
+                                 :channel (channel-of pipeline)
+                                 :mapping (.mapping pipeline)
+                                 :pipeline pipeline
+                                 :input (.input pipeline)
+                                 :output (.output pipeline)
+                                 :error (.error pipeline)
+                                 :filters (.filters pipeline))))
+    (with-resource-handler (pipeline)
+      (open-pipeline pipeline)
+      (close-pipeline pipeline))
     (case mode
-      ((t) active)
+      ((t) pipeline)
       ((nil) nil)
-      ((:results :result) (results active))
-      ((:named (named-results active)))
+      ((:results :result) (results pipeline))
+      ((:named) (named-results pipeline))
+      ((:alist) (alexandria:hash-table-alist (named-results pipeline)))
+      ((:plist) (alexandria:hash-table-plist (named-results pipeline)))
       ((:all :values)
-       (values active
-               (results active)
-               (named-results active))))))
+       (values pipeline
+               (results pipeline)
+               (named-results pipeline))))))
 
 (defmethod open-pipeline progn ((pipeline active-pipeline)
                                 &aux (length (length (.filters pipeline))))
@@ -270,10 +272,11 @@
                      (return))
                     (pipeline-fold
                      (setf (foldenv p)
-                           (foldenv:fold-environments%
+                           (foldenv.generic:fold-environments
                             (foldenv p)
-                            (list (.name m) (.result m))
-                            (.mapping p))))
+                            (append (.mapping p)
+                                    (list (.name m)
+                                          (.result m))))))
                     (pipeline-result
                      (if (.name m)
                          (push (.result m) (gethash (.name m) (named-results p)))

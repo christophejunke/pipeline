@@ -54,7 +54,7 @@ finish."))
   ((name :initarg :name)
    (environment :initform *environment*)
    (arguments :initarg :arguments)
-   (directory :initarg :directory :accessor directory-of)
+   (directory :initform t :initarg :directory :accessor directory-of)
    (search :initarg :search :initform t)
    (error :initarg :error :initform nil :accessor error-of)))
 

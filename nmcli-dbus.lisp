@@ -10,34 +10,37 @@
 
 (in-package :nmcli-dbus)
 
+(named-readtables:in-readtable :standard)
+
 (defvar *dbus* nil)
 
 (defun extend (string delimiter old)
+  (check-type string string)
+  (check-type delimiter character)
+  (check-type old list)
   (let ((split (split delimiter string)))
     (cond
       ((not split) old)
       ((string= "" (car split)) (reverse (rest split)))
       (t (append (reverse split) old)))))
 
-(define-local-keyword .address
-  (:documentation "D-Bus address :session, :system, or an address")
-  (:variables address))
+(macrolet ((define-local-keyword (n d)
+             `(defvar ,n ',n ,d)))
 
-(define-local-keyword .interface
-  (:documentation "D-Bus interface (defaults to the service name)")
-  (:variables interface))
+  (define-local-keyword .address
+    "D-Bus address :session, :system, or an address")
 
-(define-local-keyword .bus
-  (:documentation "D-Bus bus instance")
-  (:variables bus))
+  (define-local-keyword .interface
+    "D-Bus interface (defaults to the service name)")
 
-(define-local-keyword .service
-  (:documentation "Dot-separated string naming the destination service")
-  (:variables service))
+  (define-local-keyword .bus
+    "D-Bus bus instance")
 
-(define-local-keyword .path
-  (:documentation "Slash-separated path (defaults to path derived from service)")
-  (:variables path))
+  (define-local-keyword .service
+    "Dot-separated string naming the destination service")
+
+  (define-local-keyword .path
+    "Slash-separated path (defaults to path derived from service)"))
 
 (defun .service ()
   (env *dbus* .service))
@@ -71,7 +74,7 @@
 (defun .interface (&optional string)
   (with-environment *dbus* (.interface string)
     (environment-bind (interface service) *dbus*
-      (format nil "~{~a~^.~}" (reverse (or interface service))))))
+      (or interface service))))
 
 (defun resolve-bus-address (address)
   (ecase address
